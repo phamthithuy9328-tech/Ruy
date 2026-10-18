@@ -1,0 +1,325 @@
+// Dev dùng SQLite; production đổi provider = "postgresql" và DATABASE_URL.
+// Nội dung chính bằng tiếng Anh; bản dịch theo ngôn ngữ nằm trong cột `tr` dạng {"vi": {...cùng tên trường}}.
+// Giá lưu theo tiền tệ gốc của từng tour (Tour.currency, mặc định USD), hiển thị quy đổi theo tiền tệ của khách.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Destination {
+  tr          Json?
+  id          Int     @id @default(autoincrement())
+  slug        String  @unique
+  name        String
+  region      String // north | central | south | international
+  description String
+  image       String
+  featured    Boolean @default(false)
+  sortOrder   Int     @default(0)
+  seoTitle    String?
+  seoDesc     String?
+  tours       Tour[]
+}
+
+model Category {
+  tr          Json?
+  id          Int            @id @default(autoincrement())
+  slug        String         @unique
+  name        String
+  description String
+  icon        String         @default("compass")
+  group       String         @default("type") // type | theme
+  sortOrder   Int            @default(0)
+  tours       TourCategory[]
+}
+
+model Tour {
+  tr          Json?
+  id              Int            @id @default(autoincrement())
+  slug            String         @unique
+  title           String
+  summary         String
+  destinationId   Int
+  destination     Destination    @relation(fields: [destinationId], references: [id])
+  days            Int
+  nights          Int
+  durationSlug    String // day-trip | 2-days | 3-days | 4-5-days | 6-plus-days
+  transport       String // coach | flight | train | cruise
+  currency        String         @default("USD") // tiền tệ gốc của giá tour và lịch khởi hành
+  priceFrom       Int
+  originalPrice   Int?
+  rating          Float          @default(0)
+  reviewCount     Int            @default(0)
+  badge           String? // bestseller | few-seats | deal
+  images          Json // string[]
+  highlights      Json // {icon,text}[]
+  itinerary       Json // {title, description, meals}[]
+  includes        Json // string[]
+  excludes        Json // string[]
+  cancellation    String
+  notes           Json // string[]
+  packing         Json // string[]
+  faqs            Json // {q,a}[]
+  meetingPoint    String
+  mapQuery        String
+  depositPercent  Int            @default(30)
+  allowHold       Boolean        @default(true)
+  allowTransfer   Boolean        @default(true)
+  holdHours       Int            @default(24)
+  popularity      Int            @default(0)
+  published       Boolean        @default(true)
+  seoTitle        String?
+  seoDesc         String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  categories      TourCategory[]
+  departures      Departure[]
+  reviews         Review[]
+  bookings        Booking[]
+}
+
+model TourCategory {
+  tourId     Int
+  categoryId Int
+  tour       Tour     @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([tourId, categoryId])
+}
+
+model Departure {
+  id           Int       @id @default(autoincrement())
+  tourId       Int
+  tour         Tour      @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  date         DateTime
+  priceAdult   Int
+  priceChild   Int
+  priceInfant  Int
+  seatsTotal   Int
+  seatsBooked  Int       @default(0)
+  bookings     Booking[]
+
+  @@index([tourId, date])
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  tourId    Int
+  tour      Tour     @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  name      String
+  rating    Int
+  content   String
+  approved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Post {
+  tr          Json?
+  id              Int      @id @default(autoincrement())
+  slug            String   @unique
+  title           String
+  excerpt         String
+  content         String // Markdown đơn giản (## tiêu đề, đoạn, - danh sách, [[tour:slug]])
+  image           String
+  category        String // travel-tips | food | itineraries | visa
+  destinationSlug String?
+  durationSlug    String?
+  tags            Json // string[]
+  author          String
+  published       Boolean  @default(true)
+  publishedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  seoTitle        String?
+  seoDesc         String?
+}
+
+model Customer {
+  id        Int       @id @default(autoincrement())
+  name      String
+  phone     String    @unique
+  email     String?
+  source    String? // trang/tham số UTM đầu tiên
+  utm       Json?
+  status    String    @default("lead") // lead | customer | vip
+  tags      Json?
+  notes     String?
+  birthday  DateTime?
+  locale    String    @default("en")
+  currency  String    @default("USD")
+  country   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  leads     Lead[]
+  bookings  Booking[]
+  events    CustomerEvent[]
+}
+
+model Lead {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  type       String // enquiry | custom-tour | contact | newsletter
+  message    String?
+  tourSlug   String?
+  page       String?
+  createdAt  DateTime @default(now())
+}
+
+model CustomerEvent {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  type       String
+  detail     String
+  createdAt  DateTime @default(now())
+}
+
+model Booking {
+  id            Int          @id @default(autoincrement())
+  code          String       @unique
+  customerId    Int
+  customer      Customer     @relation(fields: [customerId], references: [id])
+  tourId        Int
+  tour          Tour         @relation(fields: [tourId], references: [id])
+  departureId   Int
+  departure     Departure    @relation(fields: [departureId], references: [id])
+  adults        Int
+  children      Int          @default(0)
+  infants       Int          @default(0)
+  passengers    Json?
+  note          String?
+  // Các khoản tiền dưới đây tính theo tiền tệ gốc của tour (baseCurrency)
+  baseCurrency  String       @default("USD")
+  subtotal      Int
+  discount      Int          @default(0)
+  discountCode  String?
+  total         Int
+  paymentPlan   String       @default("full") // full | deposit
+  amountDue     Int // số tiền cần thanh toán ngay
+  amountPaid    Int          @default(0)
+  // Số tiền khách xem và số tiền thực trừ qua cổng thanh toán
+  displayTotal  Int          @default(0)
+  chargeCurrency String?
+  chargeAmount  Int?
+  method        String? // onepay-domestic | onepay-intl | onepay-qr | bank-transfer | hold
+  status        String       @default("pending") // draft | pending | paid | failed | cancelled | refunded
+  checkoutStep  Int          @default(1)
+  locale        String       @default("en")
+  currency      String       @default("USD") // tiền tệ khách xem lúc đặt
+  fxRate        Float        @default(1) // tỷ giá quy đổi base → charge lúc thanh toán
+  expiresAt     DateTime?
+  remindersSent Json?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  payments      PaymentLog[]
+}
+
+model PaymentLog {
+  id        Int      @id @default(autoincrement())
+  bookingId Int
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  txnRef    String
+  kind      String // request | return | ipn
+  gateway   String // domestic | intl
+  amount    Int
+  currency  String   @default("VND")
+  verified  Boolean  @default(false)
+  responseCode String?
+  raw       Json
+  createdAt DateTime @default(now())
+
+  @@index([txnRef])
+}
+
+model DiscountCode {
+  id         Int       @id @default(autoincrement())
+  code       String    @unique
+  percent    Int?
+  amount     Int?
+  maxUses    Int?
+  used       Int       @default(0)
+  expiresAt  DateTime?
+  active     Boolean   @default(true)
+}
+
+model Webhook {
+  id        Int      @id @default(autoincrement())
+  name      String
+  url       String
+  events    Json // string[]
+  secret    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  deliveries WebhookDelivery[]
+}
+
+model WebhookDelivery {
+  id        Int      @id @default(autoincrement())
+  webhookId Int
+  webhook   Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event     String
+  status    Int
+  payload   Json
+  createdAt DateTime @default(now())
+}
+
+model MessageTemplate {
+  id        Int      @id @default(autoincrement())
+  key       String
+  locale    String   @default("en")
+  name      String
+  channel   String // email | whatsapp | zalo | sms
+  subject   String?
+  body      String
+  active    Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  @@unique([key, locale])
+}
+
+model MessageLog {
+  id        Int      @id @default(autoincrement())
+  channel   String
+  to        String
+  template  String
+  content   String
+  status    String // sent | logged | failed
+  createdAt DateTime @default(now())
+}
+
+model Redirect {
+  id        Int      @id @default(autoincrement())
+  from      String   @unique
+  to        String
+  permanent Boolean  @default(true)
+}
+
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("sales") // admin | sales | editor | translator
+  totpSecret   String?
+  active       Boolean  @default(true)
+  locale       String   @default("en")
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  actor     String
+  action    String
+  detail    String
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}
