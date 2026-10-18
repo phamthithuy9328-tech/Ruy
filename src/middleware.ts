@@ -3,7 +3,6 @@
 // Crawlers are never redirected; language is only *suggested* (see LanguageSuggestion).
 import crypto from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
-import { db } from "@/lib/db";
 import { currencyForCountry } from "@/lib/currency";
 import { countryLocale, defaultLocale, locales } from "@/i18n/config";
 
@@ -12,26 +11,28 @@ export const config = {
   matcher: ["/((?!_next/|api/|images/|favicon.ico|robots.txt|sitemap.xml|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|webp|avif|ico|css|js|txt|xml)$).*)"],
 };
 
-let redirectCache: { at: number; map: Map<string, { to: string; permanent: boolean }> } | null = null;
-async function getRedirects() {
-  if (redirectCache && Date.now() - redirectCache.at < 60_000) return redirectCache.map;
-  const rows = await db.redirect.findMany();
-  redirectCache = { at: Date.now(), map: new Map(rows.map((r) => [r.from.replace(/\/$/, "") || "/", { to: r.to, permanent: r.permanent }])) };
-  return redirectCache.map;
-}
-
-// Admin-editable country → currency / language overrides (Setting "geo"), cached like redirects
+// Country → currency / language overrides edited in the admin (Setting "geo")
 type Geo = { currency: Record<string, string>; locale: Record<string, string> };
-let geoCache: { at: number; geo: Geo } | null = null;
-async function getGeo(): Promise<Geo> {
-  if (geoCache && Date.now() - geoCache.at < 60_000) return geoCache.geo;
-  const row = await db.setting.findUnique({ where: { key: "geo" } });
-  let geo: Geo = { currency: {}, locale: {} };
+type Routing = { redirects: Map<string, { to: string; permanent: boolean }>; geo: Geo };
+const emptyRouting: Routing = { redirects: new Map(), geo: { currency: {}, locale: {} } };
+
+// The middleware never touches the database: it reads redirects and geo rules from /api/routing,
+// cached for a minute. If that call fails the site still works, just without them.
+let routingCache: { at: number; data: Routing } | null = null;
+async function getRouting(origin: string): Promise<Routing> {
+  if (routingCache && Date.now() - routingCache.at < 60_000) return routingCache.data;
   try {
-    if (row) geo = { ...geo, ...JSON.parse(row.value) };
-  } catch {}
-  geoCache = { at: Date.now(), geo };
-  return geo;
+    const res = await fetch(`${origin}/api/routing`, { cache: "no-store", signal: AbortSignal.timeout(3000) });
+    if (!res.ok) throw new Error(`routing ${res.status}`);
+    const json = (await res.json()) as { redirects: { from: string; to: string; permanent: boolean }[]; geo: Geo };
+    const data: Routing = { redirects: new Map(json.redirects.map((r) => [r.from.replace(/\/$/, "") || "/", { to: r.to, permanent: r.permanent }])), geo: json.geo };
+    routingCache = { at: Date.now(), data };
+    return data;
+  } catch (e) {
+    console.error("middleware: could not load /api/routing", e);
+    routingCache = { at: Date.now() - 50_000, data: routingCache?.data ?? emptyRouting }; // retry in ~10s
+    return routingCache.data;
+  }
 }
 
 function detectCountry(req: NextRequest) {
@@ -72,7 +73,7 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  const redirects = await getRedirects();
+  const { redirects, geo } = await getRouting(req.nextUrl.origin);
   const hit = redirects.get(pathname.replace(/\/$/, "") || "/");
   if (hit) return NextResponse.redirect(new URL(hit.to, req.url), hit.permanent ? 301 : 302);
 
@@ -87,7 +88,6 @@ export async function middleware(req: NextRequest) {
   const reqHeaders = new Headers(req.headers);
   if (country) reqHeaders.set("x-amgo-country", country);
   reqHeaders.set("x-amgo-path", pathname);
-  const geo = await getGeo();
   const geoCurrency = req.cookies.get("cur")?.value ?? currencyForCountry(country, geo.currency);
   reqHeaders.set("x-amgo-currency", geoCurrency);
 
