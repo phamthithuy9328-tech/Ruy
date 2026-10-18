@@ -108,7 +108,7 @@ export async function bookingVars(id: number) {
   const m = (v: number) => formatMoney(v, b.baseCurrency, l);
   return {
     vars: {
-      name: b.customer.name, code: b.code, tour: tour.title, date: fmtDate(b.departure.date, l), guests: `${b.adults} ${d.tour.adults}, ${b.children} ${d.tour.children}, ${b.infants} ${d.tour.infants}`,
+      name: b.customer.name, code: b.code, tour: tour.title, date: fmtDate(b.departure.date, l), guests: d.tour.guestCount(b.adults, b.children, b.infants),
       total: m(b.total), paid: m(b.amountPaid), expires: b.expiresAt ? fmtDate(b.expiresAt, l, { hour: "2-digit", minute: "2-digit" }) : "",
       lookup_url: `${site.url}${lp(l, "/manage-booking")}?code=${b.code}`, pay_url: `${site.url}${lp(l, `/book/${b.tour.slug}`)}?booking=${b.code}`,
       meeting_point: tour.meetingPoint, guide: l === "vi" ? "AmGo sẽ gửi tên và SĐT hướng dẫn viên trước 1 ngày" : "we'll send your guide's name and number the day before",

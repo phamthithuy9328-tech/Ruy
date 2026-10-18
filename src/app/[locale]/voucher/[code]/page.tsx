@@ -42,7 +42,7 @@ export default async function Voucher({ params, searchParams }: { params: Promis
           <div><dt className="text-muted">{d.checkout.date}</dt><dd className="font-medium text-ink">{fmtDate(b.departure.date, locale, { weekday: "long" })}</dd></div>
           <div><dt className="text-muted">{d.tour.meetingPoint}</dt><dd className="font-medium text-ink">{tour.meetingPoint}</dd></div>
           <div><dt className="text-muted">{d.result.lead}</dt><dd className="font-medium text-ink">{b.customer.name} · {b.customer.phone.startsWith("email:") ? "" : b.customer.phone}</dd></div>
-          <div><dt className="text-muted">{d.result.travelers}</dt><dd className="font-medium text-ink">{b.adults} {d.tour.adults}, {b.children} {d.tour.children}, {b.infants} {d.tour.infants}</dd></div>
+          <div><dt className="text-muted">{d.result.travelers}</dt><dd className="font-medium text-ink">{d.tour.guestCount(b.adults, b.children, b.infants)}</dd></div>
         </dl>
         {pax.length > 0 && <p className="mt-3 text-sm">{pax.map((p) => p.name).join(", ")}</p>}
         <table className="mt-6 w-full text-sm">

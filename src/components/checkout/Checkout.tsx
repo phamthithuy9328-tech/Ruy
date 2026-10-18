@@ -243,7 +243,7 @@ export function Checkout({ locale, m, s, existingCode }: { locale: Locale; m: Mo
             <p className="text-xs font-semibold uppercase tracking-wide text-primary">{s.destination}</p>
             <p className="font-semibold text-ink">{s.title}</p>
             <p className="flex items-center gap-2 text-sm"><Calendar className="size-4 text-muted" /> {fmtDate(s.date, locale, { weekday: "long" })}</p>
-            <p className="flex items-center gap-2 text-sm"><Users className="size-4 text-muted" /> {s.adults} {d.tour.adults}{s.children ? `, ${s.children} ${d.tour.children}` : ""}{s.infants ? `, ${s.infants} ${d.tour.infants}` : ""}</p>
+            <p className="flex items-center gap-2 text-sm"><Users className="size-4 text-muted" /> {d.tour.guestCount(s.adults, s.children, s.infants)}</p>
             {q && (
               <dl className="mt-2 grid gap-1 border-t border-line pt-3 text-sm">
                 <div className="flex justify-between"><dt>{c.subtotal}</dt><dd>{fmt(q.subtotal)}</dd></div>

@@ -22,10 +22,11 @@ To test geo detection locally, add `?country=VN`, `?country=DE` or `?country=JP`
 
 ## Deploy to production
 
-1. Push the code to a GitHub repo, then import it into Vercel (or any Node 20+ host).
-2. Create a PostgreSQL database (Neon, Supabase, Vercel Postgres, ...). In `prisma/schema.prisma`, change `provider = "sqlite"` to `"postgresql"`, set `DATABASE_URL`, then run `npx prisma db push && npm run db:seed` once.
-3. Set the environment variables from `.env.example`. These are required: `NEXT_PUBLIC_SITE_URL`, `SESSION_SECRET` and `CRON_SECRET`.
-4. Cron: `vercel.json` calls `/api/cron` every 15 minutes. Vercel Hobby only allows daily jobs, so on Hobby use cron-job.org (or similar) to call `GET https://<domain>/api/cron` with the header `Authorization: Bearer <CRON_SECRET>`. The job expires unpaid holds, sends abandoned-checkout and pre/post-trip reminders, and refreshes exchange rates daily.
+1. Import this GitHub repo into Vercel (Add New › Project). Framework: Next.js, no other build settings needed.
+2. Add a PostgreSQL database: in the Vercel project open Storage › Create › Neon (free tier is enough to start). It sets `DATABASE_URL` for you.
+   On every deploy, `npm run vercel-build` switches Prisma to PostgreSQL, syncs the schema, seeds the tours **only if the database is empty**, then builds. Redeploys never wipe data.
+3. Set the environment variables from `.env.example`. These are required: `NEXT_PUBLIC_SITE_URL`, `SESSION_SECRET`, `CRON_SECRET`, and `SEED_ADMIN_PASSWORD` (the first admin's password, used when the empty database is seeded).
+4. Cron: `vercel.json` calls `/api/cron` once a day (the most Vercel Hobby allows). For timely hold expiry and reminders, also have cron-job.org (free) call `GET https://<domain>/api/cron` every 15 minutes with the header `Authorization: Bearer <CRON_SECRET>`, or on Vercel Pro change the schedule to `*/15 * * * *`. The job expires unpaid holds, sends abandoned-checkout and pre/post-trip reminders, and refreshes exchange rates daily.
 5. Set the OnePay IPN URL to `https://<domain>/api/onepay/ipn` and the return URL to `https://<domain>/api/onepay/return`.
 6. Use a CDN that sends a country header (Vercel `x-vercel-ip-country` or Cloudflare `cf-ipcountry`), so currency is picked automatically from the visitor's location.
 
